@@ -7,6 +7,14 @@ const HSL_GRAPHQL_URL = 'https://api.digitransit.fi/routing/v1/routers/hsl/index
 const port = process.env.PORT || 3000;
 const app = express();
 
+const wantedStations = [
+  '021', //Töölönlahdenkatu
+  '022', //Rautatientori, länsi
+  '023', //Kiasma
+  '006', //Hietalahdentori
+  '067', //Perämiehenkatu
+  '005' //Sepänkatu
+];
 let stationCache = {};
 
 //Harden just a little bit
@@ -15,7 +23,7 @@ app.use(helmet());
 
 //Start app
 app.listen(port, () => {
-  console.log(`Oravanpyörä listening on *:${port}`);
+  console.log(`Oravanpyörä listening on http://localhost:${port}`);
   setInterval(refreshBikeStationCache, 5 * 1000);
   refreshBikeStationCache();
 });
@@ -63,6 +71,7 @@ function refreshBikeStationCache() {
         delete station.state;
         return station;
       })
-      .filter(station => station.active);
+      .filter(station => station.active)
+      .filter(station => wantedStations.includes(station.stationId));
   });
 }
