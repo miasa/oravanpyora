@@ -1,11 +1,12 @@
-var defaultZoom = 13.5;
-var markers = [];
-var client;
-
+//Settings
 const HSL_GRAPHQL_URL = 'https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql';
 const HSL_MQTT_URL = 'mqtts://mqtt.hsl.fi:443/';
 const HSL_MQTT_TRAM_URL = '/hfp/v1/journey/ongoing/tram/#';
+const MAPBOX_TOKEN = 'pk.eyJ1IjoibWlhc2EiLCJhIjoiY2p1dTQyczF6MDcyeTN5bm8xbWFoazBkdiJ9.BI5xVCsJISLyzFAG3W2V-A';
+const MAPBOX_STYLE = 'mapbox://styles/miasa/cjvb962rs12y61fkxql06jhj2';
+const MAPBOX_DEFAULT_ZOOM = 13.5;
 
+//Filters
 const wantedTramLines = ['1','3','6'];
 const wantedBikeStations = [
   '021', //Töölönlahdenkatu
@@ -16,13 +17,20 @@ const wantedBikeStations = [
   '005'  //Sepänkatu
 ];
 
-function initialiseMap() {
-  mapboxgl.accessToken = 'pk.eyJ1IjoibWlhc2EiLCJhIjoiY2p1dTQyczF6MDcyeTN5bm8xbWFoazBkdiJ9.BI5xVCsJISLyzFAG3W2V-A';
+//----------------------------
+
+const markers = [];
+let client;
+
+//Map
+
+function initMap() {
+  mapboxgl.accessToken = MAPBOX_TOKEN;
 
   map = new mapboxgl.Map({
     container : 'map-canvas',
-    style     : 'mapbox://styles/miasa/cjvb962rs12y61fkxql06jhj2',
-    zoom      : defaultZoom,
+    style     : MAPBOX_STYLE,
+    zoom      : MAPBOX_DEFAULT_ZOOM,
     center    : [24.9399946, 60.1729721]
   });
 
@@ -30,9 +38,9 @@ function initialiseMap() {
 }
 
 function moveToUserLocation() {
-  var geoTracker = new mapboxgl.GeolocateControl({
+  const geoTracker = new mapboxgl.GeolocateControl({
     fitBoundsOptions: {
-      maxZoom: defaultZoom
+      maxZoom: MAPBOX_DEFAULT_ZOOM
     },
     trigger: true
   });
@@ -44,73 +52,6 @@ function moveToUserLocation() {
   }, 800);
 }
 
-function getStationStatus(bikesAvailable) {
-  return bikesAvailable >= 3 ? 'plenty' : 'few';
-}
-
-function createStation(stationObject) {
-  var bikesAvailable = parseInt(stationObject.bikesAvailable);
-  var labelContent = '<div class="count">' + bikesAvailable + '</div>';
-  var stationStatus = getStationStatus(bikesAvailable);
-
-  var el = document.createElement('div');
-  el.className = `bikestation-marker status-${stationStatus} station-${stationObject.stationId}`;
-  el.innerHTML = labelContent;
-
-  var markerObject = new mapboxgl.Marker({
-    element : el,
-    anchor  : 'center'
-  }).setLngLat([stationObject.lon, stationObject.lat]);
-
-  var stationMarker = {
-    markerObject : markerObject,
-    id           : stationObject.stationId,
-    type         : 'station'
-  };
-
-  markers.push(stationMarker);
-  stationMarker.markerObject.addTo(map);
-}
-
-function createTram(tramObject) {
-  var el = document.createElement('div');
-  el.className = `tram-marker tram-` + tramObject.id;
-  el.innerHTML = '<div class="line">' + tramObject.line + '</div><div class="direction"></div>';
-
-  var markerObject = new mapboxgl.Marker({
-    element : el,
-    anchor  : 'center'
-  }).setLngLat([tramObject.lon, tramObject.lat]);
-
-  var tramnMarker = {
-    markerObject : markerObject,
-    id           : tramObject.id,
-    type         : 'tram'
-  };
-
-  markers.push(tramnMarker);
-  tramnMarker.markerObject.addTo(map);
-}
-
-function updateTram(tramObject) {
-  var element = document.querySelector('.tram-' + tramObject.id);
-  if(element) {
-      var markerObject = getMarker(tramObject.id).markerObject;
-      markerObject.setLngLat([tramObject.lon, tramObject.lat]);
-      updateTramDirection(element, tramObject.hdg);
-  }
-}
-
-function updateTramDirection(element, direction) {
-  var directionElement = element.querySelector('.direction');
-  if(typeof direction === 'number') {
-    directionElement.style.transform = 'rotate(' + direction + 'deg)';
-    directionElement.classList.remove('hidden');
-  } else {
-    directionElement.classList.add('hidden');
-  }
-}
-
 function markerExists(id) {
   return markers.some(marker => marker.id === id);
 }
@@ -120,12 +61,59 @@ function getMarker(id) {
   return markers[index];
 }
 
-function createOrUpdateTram(tramObject) {
-  if(markerExists(tramObject.id)) {
-    updateTram(tramObject);
-  } else {
-    createTram(tramObject);
+//Bike stations
+
+function getStationStatus(bikesAvailable) {
+  return bikesAvailable >= 3 ? 'plenty' : 'few';
+}
+
+function createStation(stationObject) {
+  const bikesAvailable = parseInt(stationObject.bikesAvailable);
+  const labelContent = '<div class="count">' + bikesAvailable + '</div>';
+  const stationStatus = getStationStatus(bikesAvailable);
+
+  const el = document.createElement('div');
+  el.className = `bikestation-marker bikestation-${stationObject.stationId} status-${stationStatus}`;
+  el.innerHTML = labelContent;
+
+  const markerObject = new mapboxgl.Marker({
+    element : el,
+    anchor  : 'center'
+  }).setLngLat([stationObject.lon, stationObject.lat]);
+
+  const stationMarker = {
+    markerObject : markerObject,
+    id           : stationObject.stationId,
+    type         : 'station'
+  };
+
+  markers.push(stationMarker);
+  stationMarker.markerObject.addTo(map);
+}
+
+function updateBikeStation(stationObject) {
+  const element = document.querySelector('.bikestation-' + stationObject.stationId);
+  if(element) {
+    const bikesAvailable = parseInt(stationObject.bikesAvailable);
+    const stationStatus = getStationStatus(bikesAvailable)
+    element.querySelector('.count').innerHTML = bikesAvailable;
+    element.classList.forEach(className => {
+      if(className.startsWith('status-')) {
+        element.classList.remove(className);
+      }
+    });
+    element.classList.add(`status-${stationStatus}`);
   }
+}
+
+function createOrUpdateBikeStations(stationObjects) {
+  stationObjects.forEach(stationObject => {
+    if(markerExists(stationObject.stationId)) {
+      updateBikeStation(stationObject);
+    } else {
+      createStation(stationObject);
+    }
+  });
 }
 
 function fetchBikeStations() {
@@ -165,31 +153,6 @@ function fetchBikeStations() {
   });
 }
 
-function createOrUpdateBikeStations(stationObjects) {
-  stationObjects.forEach(stationObject => {
-    if(markerExists(stationObject.stationId)) {
-      updateBikeStation(stationObject);
-    } else {
-      createStation(stationObject);
-    }
-  });
-}
-
-function updateBikeStation(stationObject) {
-  var element = document.querySelector('.station-' + stationObject.stationId);
-  if(element) {
-    const bikesAvailable = parseInt(stationObject.bikesAvailable);
-    const stationStatus = getStationStatus(bikesAvailable)
-    element.querySelector('.count').innerHTML = bikesAvailable;
-    element.classList.forEach(className => {
-      if(className.startsWith('station-')) {
-        element.classList.remove(className);
-      }
-    });
-    element.classList.add(`station-${stationStatus}`);
-  }
-}
-
 function initBikeStations() {
   fetchBikeStations().then(data => createOrUpdateBikeStations(data));
   window.setInterval(() => {
@@ -197,20 +160,54 @@ function initBikeStations() {
   }, 10000);
 }
 
-function initializeApp() {
-  initialiseMap();
-  initTrams();
-  initBikeStations();
+//Trams
+
+function createTram(tramObject) {
+  const el = document.createElement('div');
+  el.className = `tram-marker tram-` + tramObject.id;
+  el.innerHTML = '<div class="line">' + tramObject.line + '</div><div class="direction"></div>';
+
+  const markerObject = new mapboxgl.Marker({
+    element : el,
+    anchor  : 'center'
+  }).setLngLat([tramObject.lon, tramObject.lat]);
+
+  const tramnMarker = {
+    markerObject : markerObject,
+    id           : tramObject.id,
+    type         : 'tram'
+  };
+
+  markers.push(tramnMarker);
+  tramnMarker.markerObject.addTo(map);
 }
 
-function ready(fn) {
-  if(document.readyState !== 'loading') {
-    fn();
-  } else {
-    document.addEventListener('DOMContentLoaded', fn);
+function updateTram(tramObject) {
+  const element = document.querySelector('.tram-' + tramObject.id);
+  if(element) {
+    const markerObject = getMarker(tramObject.id).markerObject;
+      markerObject.setLngLat([tramObject.lon, tramObject.lat]);
+      updateTramDirection(element, tramObject.hdg);
   }
 }
 
+function updateTramDirection(element, direction) {
+  const directionElement = element.querySelector('.direction');
+  if(typeof direction === 'number') {
+    directionElement.style.transform = 'rotate(' + direction + 'deg)';
+    directionElement.classList.remove('hidden');
+  } else {
+    directionElement.classList.add('hidden');
+  }
+}
+
+function createOrUpdateTram(tramObject) {
+  if(markerExists(tramObject.id)) {
+    updateTram(tramObject);
+  } else {
+    createTram(tramObject);
+  }
+}
 
 function initTrams() {
   if(client) {
@@ -240,8 +237,22 @@ function initTrams() {
       });
     }
   });
-};
+}
 
-/****************************/
+//App
+
+function initializeApp() {
+  initMap();
+  initTrams();
+  initBikeStations();
+}
+
+function ready(fn) {
+  if(document.readyState !== 'loading') {
+    fn();
+  } else {
+    document.addEventListener('DOMContentLoaded', fn);
+  }
+}
 
 ready(initializeApp);
