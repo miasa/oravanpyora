@@ -7,7 +7,7 @@ const MAPBOX_STYLE = 'mapbox://styles/miasa/cjvb962rs12y61fkxql06jhj2';
 const MAPBOX_DEFAULT_ZOOM = 13.5;
 
 //Filters
-const wantedTramLines = ['1','3','6'];
+const wantedTramLines = ['1', '1H', '3','6'];
 const wantedBikeStations = [
   '021', //Töölönlahdenkatu
   '022', //Rautatientori, länsi
@@ -16,6 +16,8 @@ const wantedBikeStations = [
   '067', //Perämiehenkatu
   '005'  //Sepänkatu
 ];
+const stopAtWork = 'HSL:1050417';
+
 
 //----------------------------
 
@@ -42,6 +44,7 @@ function moveToUserLocation() {
     fitBoundsOptions: {
       maxZoom: MAPBOX_DEFAULT_ZOOM
     },
+    trackUserLocation: true,
     trigger: true
   });
 
@@ -73,7 +76,7 @@ function createStation(stationObject) {
   const stationStatus = getStationStatus(bikesAvailable);
 
   const el = document.createElement('div');
-  el.className = `bikestation-marker bikestation-${stationObject.stationId} status-${stationStatus}`;
+  el.className = `marker marker-bikestation bikestation-${stationObject.stationId} status-${stationStatus}`;
   el.innerHTML = labelContent;
 
   const markerObject = new mapboxgl.Marker({
@@ -157,14 +160,14 @@ function initBikeStations() {
   fetchBikeStations().then(data => createOrUpdateBikeStations(data));
   window.setInterval(() => {
     fetchBikeStations().then(data => createOrUpdateBikeStations(data));
-  }, 10000);
+  }, 30000);
 }
 
 //Trams
 
 function createTram(tramObject) {
   const el = document.createElement('div');
-  el.className = `tram-marker tram-` + tramObject.id;
+  el.className = `marker marker-tram tram-` + tramObject.id;
   el.innerHTML = '<div class="line">' + tramObject.line + '</div><div class="direction"></div>';
 
   const markerObject = new mapboxgl.Marker({
@@ -239,12 +242,110 @@ function initTrams() {
   });
 }
 
+//WorkStop
+
+function fetchWorkDepartures() {
+  const query = `
+    {
+      stop(id: "${stopAtWork}") {
+        name
+        stoptimesWithoutPatterns {
+          scheduledArrival
+          realtimeArrival
+          arrivalDelay
+          scheduledDeparture
+          realtimeDeparture
+          departureDelay
+          realtime
+          realtimeState
+          serviceDay
+          headsign
+          trip {
+            directionId
+            routeShortName
+          }
+        }
+      }  
+    }
+  `;
+
+  return fetch(HSL_GRAPHQL_URL, {
+    method  : 'post',
+    body    : JSON.stringify({query: query}),
+    headers : {'Content-Type': 'application/json'},
+  })
+  .then(res => res.json())
+  .then(res => {
+    const departures = res.data.stop.stoptimesWithoutPatterns.filter(dep => dep.trip.directionId === '0').slice(0, 2);
+
+    departures.forEach(dep => {
+      dep.timestamp = dep.serviceDay + dep.scheduledDeparture;
+    });
+
+    return {
+      name       : res.data.stop.name,
+      departures : departures
+    };
+  });
+}
+
+function renderWorkDepartures(stop) {
+  const markup = `
+    <h6 class="departure-title">${stop.name}</h6>
+    <ul class="departure-list">
+    ${stop.departures.map(departure => {
+      return `
+        <li><strong>${departure.trip.routeShortName}</strong>: ${timeStampToTime(departure.timestamp)}</li>
+      `;
+    }).join('')}
+    </ul>
+  `;
+  document.getElementById('departures').innerHTML = markup;
+}
+
+function timeStampToTime(timestamp) {
+  // Create a new JavaScript Date object based on the timestamp
+  // multiplied by 1000 so that the argument is in milliseconds, not seconds.
+  const date = new Date(timestamp * 1000);
+  // Hours part from the timestamp
+  const hours = '0' + date.getHours();
+  // Minutes part from the timestamp
+  const minutes = '0' + date.getMinutes();
+  // Will display time in 10:30 format
+  const formattedTime = hours.substr(-2) + ':' + minutes.substr(-2);
+
+  return formattedTime;
+}
+
+function initWorkDepartures() {
+  console.log('initworkdepartures');
+  fetchWorkDepartures().then(data => {
+    const now = Math.round(new Date().getTime() / 1000);
+    const difference = data.departures[0].timestamp - now;
+
+    if(difference >= 0) {
+      window.setTimeout(() => {
+        console.log('reInit');
+        initWorkDepartures();
+      }, difference * 1000);
+    } else {
+      console.log('reInit');
+      initWorkDepartures();
+    }
+    
+    console.log('difference', difference, 'timestamp', data.departures[0].timestamp, 'now', now);
+
+    renderWorkDepartures(data);
+  });
+}
+
 //App
 
 function initializeApp() {
   initMap();
   initTrams();
   initBikeStations();
+  initWorkDepartures();
 }
 
 function ready(fn) {
