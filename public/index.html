@@ -20,10 +20,16 @@
   <script src="https://unpkg.com/mqtt@2.18.8/dist/mqtt.min.js"></script>
   <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v0.49.0/mapbox-gl.css">
   <link rel="stylesheet" href="/css/main.css">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet" type="text/css">
 </head>
 <body>
-  <div id="map-canvas"></div>
-  <div id="departures"></div>
+  <div class="grid">
+    <div id="map-canvas"></div>
+    <div class="departures">
+      <div id="departures-tram" class="departures-tram"></div>
+      <div id="departures-train" class="departures-train"></div>
+    </div>
+  </div>
   <script async src="/js/main.js"></script>
 </body>
 </html>

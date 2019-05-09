@@ -5,7 +5,20 @@ body {
   width: 100%;
 }
 
-#map-canvas {
+body {
+  font-family: Roboto, Helvetica, sans-serif;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+strong {
+  font-weight: 700;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 80% 1fr;
   height: 100%;
   width: 100%;
 }
@@ -14,17 +27,22 @@ body {
   align-items: center;
   color: #000000;
   display: flex;
-  height: 20px;
+  height: 24px;
   justify-content: center;
-  width: 20px;
+  width: 24px;
   z-index: 1;
 }
 
 /* Bikestation marker */
 
+.marker-bikestation {
+  border-radius: 2px;
+}
+
 .marker-bikestation.status-plenty {
   background-color: #FCBC19;
 }
+
 .marker-bikestation.status-few {
   background-color: #cccccc;
 }
@@ -34,6 +52,9 @@ body {
 .marker-tram {
   background-color: #00985f;
   border-radius: 100%;
+  color: #ffffff;
+  height: 30px;
+  width: 30px;
 }
 
 .marker-tram .direction {
@@ -42,8 +63,8 @@ body {
   left: 50%;
   width: 100%;
   height: 100%;
-  margin-left: -10px;
-  margin-top: -10px;
+  margin-left: -15px;
+  margin-top: -15px;
   background: transparent;
   border-radius: 100%;
 }
@@ -51,8 +72,8 @@ body {
 .marker-tram .direction::after {
   position: absolute;
   visibility: initial;
-  top: -6px;
-  left: 5px;
+  top: -7px;
+  left: 10px;
   content: "";
   width: 0;
   height: 0;
@@ -63,27 +84,40 @@ body {
 
  /* Departures */
 
- #departures {
-   background: #ccc;
-   bottom: 0;
-   color: #000000;
-   padding: 1em;
-   position: absolute;
-   right: 0;
-   z-index: 10;
- }
+.departures {
+  background: #e0e0e0;
+  color: #000000;
+  display: flex;
+  justify-content: space-between;
+}
 
- .departure-title {
-   font-size: 1em;
-   font-weight: bold;
-   margin: 0 0 0.5em 0;
- }
+.departures-train,
+.departures-tram {
+  padding: 1em;
+}
 
- .departure-list {
-   list-style: none;
-   margin: 0;
-   padding: 0;
- }
+.departure-title {
+  font-size: 1em;
+  font-weight: 700;
+  margin: 0 0 1em 0;
+}
+
+.departure-list {
+  display: table;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.departure-list li {
+  display: table-row;
+}
+
+.departure-list .cell {
+  display: table-cell;
+  padding-right: 0.5em;
+  padding-bottom: 0.2em;
+}
 
  /* Utility */
 

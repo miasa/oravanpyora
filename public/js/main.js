@@ -2,12 +2,17 @@
 const HSL_GRAPHQL_URL = 'https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql';
 const HSL_MQTT_URL = 'mqtts://mqtt.hsl.fi:443/';
 const HSL_MQTT_TRAM_URL = '/hfp/v1/journey/ongoing/tram/#';
+const HSL_TRAINS_URL = 'https://rata.digitraffic.fi/api/v1/live-trains';
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibWlhc2EiLCJhIjoiY2p1dTQyczF6MDcyeTN5bm8xbWFoazBkdiJ9.BI5xVCsJISLyzFAG3W2V-A';
 const MAPBOX_STYLE = 'mapbox://styles/miasa/cjvb962rs12y61fkxql06jhj2';
 const MAPBOX_DEFAULT_ZOOM = 13.5;
+const TRAIN_REFRESH_INTERVAL_MS = 30000; //30 seconds in ms
+const TRAM_REFRESH_INTERVAL_MS = 30000;
+const BIKESTATION_REFRESH_INTERVAL_MS = 30000;
 
 //Filters
 const wantedTramLines = ['1', '1H', '3','6'];
+const wantedTrainLines = ['A', 'E', 'U', 'Y', 'L'];
 const wantedBikeStations = [
   '021', //Töölönlahdenkatu
   '022', //Rautatientori, länsi
@@ -17,12 +22,14 @@ const wantedBikeStations = [
   '005'  //Sepänkatu
 ];
 const stopAtWork = 'HSL:1050417';
+const trainStation = 'HKI';
 
 
 //----------------------------
 
 const markers = [];
 let client;
+let t;
 
 //Map
 
@@ -139,28 +146,28 @@ function fetchBikeStations() {
     body    : JSON.stringify({query: query}),
     headers : {'Content-Type': 'application/json'},
   })
-  .then(res => res.json())
-  .then(res => {
-    return res.data.bikeRentalStations
-      .map(station => {
-        if(station.state === 'Station off') {
-          station.active = false;
-        } else {
-          station.active = true;
-        }
-        delete station.state;
-        return station;
-      })
-      .filter(station => station.active)
-      .filter(station => wantedBikeStations.includes(station.stationId));
-  });
+    .then(res => res.json())
+    .then(res => {
+      return res.data.bikeRentalStations
+        .map(station => {
+          if(station.state === 'Station off') {
+            station.active = false;
+          } else {
+            station.active = true;
+          }
+          delete station.state;
+          return station;
+        })
+        .filter(station => station.active)
+        .filter(station => wantedBikeStations.includes(station.stationId));
+    });
 }
 
 function initBikeStations() {
   fetchBikeStations().then(data => createOrUpdateBikeStations(data));
   window.setInterval(() => {
     fetchBikeStations().then(data => createOrUpdateBikeStations(data));
-  }, 30000);
+  }, BIKESTATION_REFRESH_INTERVAL_MS);
 }
 
 //Trams
@@ -242,14 +249,14 @@ function initTrams() {
   });
 }
 
-//WorkStop
+//Work departures
 
 function fetchWorkDepartures() {
   const query = `
     {
       stop(id: "${stopAtWork}") {
         name
-        stoptimesWithoutPatterns {
+        stoptimesWithoutPatterns(numberOfDepartures: 2, omitNonPickups: true) {
           scheduledArrival
           realtimeArrival
           arrivalDelay
@@ -274,19 +281,19 @@ function fetchWorkDepartures() {
     body    : JSON.stringify({query: query}),
     headers : {'Content-Type': 'application/json'},
   })
-  .then(res => res.json())
-  .then(res => {
-    const departures = res.data.stop.stoptimesWithoutPatterns.filter(dep => dep.trip.directionId === '0').slice(0, 2);
+    .then(res => res.json())
+    .then(res => {
+      const departures = [...res.data.stop.stoptimesWithoutPatterns];
 
-    departures.forEach(dep => {
-      dep.timestamp = dep.serviceDay + dep.scheduledDeparture;
+      departures.forEach(dep => {
+        dep.timestamp = dep.serviceDay + dep.scheduledDeparture;
+      });
+
+      return {
+        name       : res.data.stop.name,
+        departures : departures
+      };
     });
-
-    return {
-      name       : res.data.stop.name,
-      departures : departures
-    };
-  });
 }
 
 function renderWorkDepartures(stop) {
@@ -295,48 +302,70 @@ function renderWorkDepartures(stop) {
     <ul class="departure-list">
     ${stop.departures.map(departure => {
       return `
-        <li><strong>${departure.trip.routeShortName}</strong>: ${timeStampToTime(departure.timestamp)}</li>
+        <li><strong class="cell">${departure.trip.routeShortName}</strong> <span class="cell">${timeStampToTime(departure.timestamp)}</span></li>
       `;
     }).join('')}
     </ul>
   `;
-  document.getElementById('departures').innerHTML = markup;
+  document.getElementById('departures-tram').innerHTML = markup;
 }
 
 function timeStampToTime(timestamp) {
-  // Create a new JavaScript Date object based on the timestamp
-  // multiplied by 1000 so that the argument is in milliseconds, not seconds.
   const date = new Date(timestamp * 1000);
-  // Hours part from the timestamp
   const hours = '0' + date.getHours();
-  // Minutes part from the timestamp
   const minutes = '0' + date.getMinutes();
-  // Will display time in 10:30 format
   const formattedTime = hours.substr(-2) + ':' + minutes.substr(-2);
 
   return formattedTime;
 }
 
 function initWorkDepartures() {
-  console.log('initworkdepartures');
-  fetchWorkDepartures().then(data => {
-    const now = Math.round(new Date().getTime() / 1000);
-    const difference = data.departures[0].timestamp - now;
+  fetchWorkDepartures().then(data => renderWorkDepartures(data));
 
-    if(difference >= 0) {
-      window.setTimeout(() => {
-        console.log('reInit');
-        initWorkDepartures();
-      }, difference * 1000);
-    } else {
-      console.log('reInit');
-      initWorkDepartures();
-    }
-    
-    console.log('difference', difference, 'timestamp', data.departures[0].timestamp, 'now', now);
+  window.setInterval(() => {
+    fetchWorkDepartures().then(data => renderWorkDepartures(data));
+  }, TRAM_REFRESH_INTERVAL_MS);
+}
 
-    renderWorkDepartures(data);
-  });
+function fetchTrainDepartures() {
+  return fetch(HSL_TRAINS_URL + '?arrived_trains=0&arriving_trains=0&departed_trains=0&departing_trains=30&station=' + trainStation)
+    .then(res => res.json())
+    .then(res => {
+      return res
+        .filter(train => wantedTrainLines.includes(train.commuterLineID))
+        .filter(train => !train.cancelled)
+        .map(train => {
+          return {
+            line           : train.commuterLineID,
+            timestamp      : Math.round(new Date(train.timeTableRows[0].scheduledTime).getTime() / 1000),
+            departureTrack : train.timeTableRows[0].commercialTrack
+          };
+        })
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .splice(0, 2);
+    });
+}
+
+function renderTrainDepartures(trains) {
+  const markup = `
+    <h6 class="departure-title">Junat</h6>
+    <ul class="departure-list">
+    ${trains.map(train => {
+      return `
+        <li><strong class="cell">${train.line}</strong> <span class="cell">${timeStampToTime(train.timestamp)}</span> <span class="cell">laituri ${train.departureTrack}</span></li>
+      `;
+    }).join('')}
+    </ul>
+  `;
+  document.getElementById('departures-train').innerHTML = markup;
+}
+
+function initTrainDepartures() {
+  fetchTrainDepartures().then(data => renderTrainDepartures(data));
+
+  window.setInterval(() => {
+    fetchTrainDepartures().then(data => renderTrainDepartures(data));
+  }, TRAIN_REFRESH_INTERVAL_MS);
 }
 
 //App
@@ -346,6 +375,7 @@ function initializeApp() {
   initTrams();
   initBikeStations();
   initWorkDepartures();
+  initTrainDepartures();
 }
 
 function ready(fn) {
