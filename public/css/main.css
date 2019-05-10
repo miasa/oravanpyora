@@ -18,7 +18,7 @@ strong {
 .grid {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: 80% 1fr;
+  grid-template-rows: auto minmax(min-content, max-content);
   height: 100%;
   width: 100%;
 }
@@ -115,8 +115,11 @@ strong {
 
 .departure-list .cell {
   display: table-cell;
-  padding-right: 0.5em;
   padding-bottom: 0.2em;
+}
+
+.departure-list .cell + .cell {
+  padding-left: 0.5em; 
 }
 
  /* Utility */
