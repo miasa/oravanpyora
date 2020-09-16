@@ -1,7 +1,7 @@
 //Settings
 const HSL_GRAPHQL_URL = 'https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql';
 const HSL_MQTT_URL = 'mqtts://mqtt.hsl.fi:443/';
-const HSL_MQTT_TRAM_URL = '/hfp/v1/journey/ongoing/tram/#';
+const HSL_MQTT_TRAM_URL = '/hfp/v2/journey/ongoing/vp/tram/#';
 const HSL_TRAINS_URL = 'https://rata.digitraffic.fi/api/v1/live-trains';
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibWlhc2EiLCJhIjoiY2p1dTQyczF6MDcyeTN5bm8xbWFoazBkdiJ9.BI5xVCsJISLyzFAG3W2V-A';
 const MAPBOX_STYLE = 'mapbox://styles/miasa/cjvb962rs12y61fkxql06jhj2';
